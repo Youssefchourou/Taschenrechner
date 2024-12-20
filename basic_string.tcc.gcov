@@ -1,0 +1,1093 @@
+        -:    0:Source:/usr/include/c++/13.2.1/bits/basic_string.tcc
+        -:    0:Graph:calculator.gcno
+        -:    0:Data:calculator.gcda
+        -:    0:Runs:2
+        -:    1:// Components for manipulating sequences of characters -*- C++ -*-
+        -:    2:
+        -:    3:// Copyright (C) 1997-2023 Free Software Foundation, Inc.
+        -:    4://
+        -:    5:// This file is part of the GNU ISO C++ Library.  This library is free
+        -:    6:// software; you can redistribute it and/or modify it under the
+        -:    7:// terms of the GNU General Public License as published by the
+        -:    8:// Free Software Foundation; either version 3, or (at your option)
+        -:    9:// any later version.
+        -:   10:
+        -:   11:// This library is distributed in the hope that it will be useful,
+        -:   12:// but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   13:// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   14:// GNU General Public License for more details.
+        -:   15:
+        -:   16:// Under Section 7 of GPL version 3, you are granted additional
+        -:   17:// permissions described in the GCC Runtime Library Exception, version
+        -:   18:// 3.1, as published by the Free Software Foundation.
+        -:   19:
+        -:   20:// You should have received a copy of the GNU General Public License and
+        -:   21:// a copy of the GCC Runtime Library Exception along with this program;
+        -:   22:// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+        -:   23:// <http://www.gnu.org/licenses/>.
+        -:   24:
+        -:   25:/** @file bits/basic_string.tcc
+        -:   26: *  This is an internal header file, included by other library headers.
+        -:   27: *  Do not attempt to use it directly. @headername{string}
+        -:   28: */
+        -:   29:
+        -:   30://
+        -:   31:// ISO C++ 14882: 21  Strings library
+        -:   32://
+        -:   33:
+        -:   34:// Written by Jason Merrill based upon the specification by Takanori Adachi
+        -:   35:// in ANSI X3J16/94-0013R2.  Rewritten by Nathan Myers to ISO-14882.
+        -:   36:// Non-reference-counted implementation written by Paolo Carlini and
+        -:   37:// updated by Jonathan Wakely for ISO-14882-2011.
+        -:   38:
+        -:   39:#ifndef _BASIC_STRING_TCC
+        -:   40:#define _BASIC_STRING_TCC 1
+        -:   41:
+        -:   42:#pragma GCC system_header
+        -:   43:
+        -:   44:#include <bits/cxxabi_forced.h>
+        -:   45:
+        -:   46:namespace std _GLIBCXX_VISIBILITY(default)
+        -:   47:{
+        -:   48:_GLIBCXX_BEGIN_NAMESPACE_VERSION
+        -:   49:
+        -:   50:#if _GLIBCXX_USE_CXX11_ABI
+        -:   51:
+        -:   52:  template<typename _CharT, typename _Traits, typename _Alloc>
+        -:   53:    const typename basic_string<_CharT, _Traits, _Alloc>::size_type
+        -:   54:    basic_string<_CharT, _Traits, _Alloc>::npos;
+        -:   55:
+        -:   56:  template<typename _CharT, typename _Traits, typename _Alloc>
+        -:   57:    _GLIBCXX20_CONSTEXPR
+        -:   58:    void
+        -:   59:    basic_string<_CharT, _Traits, _Alloc>::
+        -:   60:    swap(basic_string& __s) _GLIBCXX_NOEXCEPT
+        -:   61:    {
+        -:   62:      if (this == std::__addressof(__s))
+        -:   63:	return;
+        -:   64:
+        -:   65:      _Alloc_traits::_S_on_swap(_M_get_allocator(), __s._M_get_allocator());
+        -:   66:
+        -:   67:      if (_M_is_local())
+        -:   68:	if (__s._M_is_local())
+        -:   69:	  {
+        -:   70:	    if (length() && __s.length())
+        -:   71:	      {
+        -:   72:		_CharT __tmp_data[_S_local_capacity + 1];
+        -:   73:		traits_type::copy(__tmp_data, __s._M_local_buf,
+        -:   74:				  __s.length() + 1);
+        -:   75:		traits_type::copy(__s._M_local_buf, _M_local_buf,
+        -:   76:				  length() + 1);
+        -:   77:		traits_type::copy(_M_local_buf, __tmp_data,
+        -:   78:				  __s.length() + 1);
+        -:   79:	      }
+        -:   80:	    else if (__s.length())
+        -:   81:	      {
+        -:   82:		traits_type::copy(_M_local_buf, __s._M_local_buf,
+        -:   83:				  __s.length() + 1);
+        -:   84:		_M_length(__s.length());
+        -:   85:		__s._M_set_length(0);
+        -:   86:		return;
+        -:   87:	      }
+        -:   88:	    else if (length())
+        -:   89:	      {
+        -:   90:		traits_type::copy(__s._M_local_buf, _M_local_buf,
+        -:   91:				  length() + 1);
+        -:   92:		__s._M_length(length());
+        -:   93:		_M_set_length(0);
+        -:   94:		return;
+        -:   95:	      }
+        -:   96:	  }
+        -:   97:	else
+        -:   98:	  {
+        -:   99:	    const size_type __tmp_capacity = __s._M_allocated_capacity;
+        -:  100:	    traits_type::copy(__s._M_local_buf, _M_local_buf,
+        -:  101:			      length() + 1);
+        -:  102:	    _M_data(__s._M_data());
+        -:  103:	    __s._M_data(__s._M_local_buf);
+        -:  104:	    _M_capacity(__tmp_capacity);
+        -:  105:	  }
+        -:  106:      else
+        -:  107:	{
+        -:  108:	  const size_type __tmp_capacity = _M_allocated_capacity;
+        -:  109:	  if (__s._M_is_local())
+        -:  110:	    {
+        -:  111:	      traits_type::copy(_M_local_buf, __s._M_local_buf,
+        -:  112:				__s.length() + 1);
+        -:  113:	      __s._M_data(_M_data());
+        -:  114:	      _M_data(_M_local_buf);
+        -:  115:	    }
+        -:  116:	  else
+        -:  117:	    {
+        -:  118:	      pointer __tmp_ptr = _M_data();
+        -:  119:	      _M_data(__s._M_data());
+        -:  120:	      __s._M_data(__tmp_ptr);
+        -:  121:	      _M_capacity(__s._M_allocated_capacity);
+        -:  122:	    }
+        -:  123:	  __s._M_capacity(__tmp_capacity);
+        -:  124:	}
+        -:  125:
+        -:  126:      const size_type __tmp_length = length();
+        -:  127:      _M_length(__s.length());
+        -:  128:      __s._M_length(__tmp_length);
+        -:  129:    }
+        -:  130:
+        -:  131:  template<typename _CharT, typename _Traits, typename _Alloc>
+        -:  132:    _GLIBCXX20_CONSTEXPR
+        -:  133:    typename basic_string<_CharT, _Traits, _Alloc>::pointer
+        -:  134:    basic_string<_CharT, _Traits, _Alloc>::
+        -:  135:    _M_create(size_type& __capacity, size_type __old_capacity)
+        -:  136:    {
+        -:  137:      // _GLIBCXX_RESOLVE_LIB_DEFECTS
+        -:  138:      // 83.  String::npos vs. string::max_size()
+        -:  139:      if (__capacity > max_size())
+        -:  140:	std::__throw_length_error(__N("basic_string::_M_create"));
+        -:  141:
+        -:  142:      // The below implements an exponential growth policy, necessary to
+        -:  143:      // meet amortized linear time requirements of the library: see
+        -:  144:      // http://gcc.gnu.org/ml/libstdc++/2001-07/msg00085.html.
+        -:  145:      if (__capacity > __old_capacity && __capacity < 2 * __old_capacity)
+        -:  146:	{
+        -:  147:	  __capacity = 2 * __old_capacity;
+        -:  148:	  // Never allocate a string bigger than max_size.
+        -:  149:	  if (__capacity > max_size())
+        -:  150:	    __capacity = max_size();
+        -:  151:	}
+        -:  152:
+        -:  153:      // NB: Need an array of char_type[__capacity], plus a terminating
+        -:  154:      // null char_type() element.
+        -:  155:      return _S_allocate(_M_get_allocator(), __capacity + 1);
+        -:  156:    }
+        -:  157:
+        -:  158:  // NB: This is the special case for Input Iterators, used in
+        -:  159:  // istreambuf_iterators, etc.
+        -:  160:  // Input Iterators have a cost structure very different from
+        -:  161:  // pointers, calling for a different coding style.
+        -:  162:  template<typename _CharT, typename _Traits, typename _Alloc>
+        -:  163:    template<typename _InIterator>
+        -:  164:      _GLIBCXX20_CONSTEXPR
+        -:  165:      void
+        -:  166:      basic_string<_CharT, _Traits, _Alloc>::
+        -:  167:      _M_construct(_InIterator __beg, _InIterator __end,
+        -:  168:		   std::input_iterator_tag)
+        -:  169:      {
+        -:  170:	size_type __len = 0;
+        -:  171:	size_type __capacity = size_type(_S_local_capacity);
+        -:  172:
+        -:  173:	pointer __p = _M_use_local_data();
+        -:  174:
+        -:  175:	while (__beg != __end && __len < __capacity)
+        -:  176:	  {
+        -:  177:	    __p[__len++] = *__beg;
+        -:  178:	    ++__beg;
+        -:  179:	  }
+        -:  180:
+        -:  181:	struct _Guard
+        -:  182:	{
+        -:  183:	  _GLIBCXX20_CONSTEXPR
+        -:  184:	  explicit _Guard(basic_string* __s) : _M_guarded(__s) { }
+        -:  185:
+        -:  186:	  _GLIBCXX20_CONSTEXPR
+        -:  187:	  ~_Guard() { if (_M_guarded) _M_guarded->_M_dispose(); }
+        -:  188:
+        -:  189:	  basic_string* _M_guarded;
+        -:  190:	} __guard(this);
+        -:  191:
+        -:  192:	while (__beg != __end)
+        -:  193:	  {
+        -:  194:	    if (__len == __capacity)
+        -:  195:	      {
+        -:  196:		// Allocate more space.
+        -:  197:		__capacity = __len + 1;
+        -:  198:		pointer __another = _M_create(__capacity, __len);
+        -:  199:		this->_S_copy(__another, _M_data(), __len);
+        -:  200:		_M_dispose();
+        -:  201:		_M_data(__another);
+        -:  202:		_M_capacity(__capacity);
+        -:  203:	      }
+        -:  204:	    traits_type::assign(_M_data()[__len++], *__beg);
+        -:  205:	    ++__beg;
+        -:  206:	  }
+        -:  207:
+        -:  208:	__guard._M_guarded = 0;
+        -:  209:
+        -:  210:	_M_set_length(__len);
+        -:  211:      }
+        -:  212:
+        -:  213:  template<typename _CharT, typename _Traits, typename _Alloc>
+        -:  214:    template<typename _InIterator>
+        -:  215:      _GLIBCXX20_CONSTEXPR
+        -:  216:      void
+    #####:  217:      basic_string<_CharT, _Traits, _Alloc>::
+        -:  218:      _M_construct(_InIterator __beg, _InIterator __end,
+        -:  219:		   std::forward_iterator_tag)
+        -:  220:      {
+    #####:  221:	size_type __dnew = static_cast<size_type>(std::distance(__beg, __end));
+        -:  222:
+    #####:  223:	if (__dnew > size_type(_S_local_capacity))
+        -:  224:	  {
+    #####:  225:	    _M_data(_M_create(__dnew, size_type(0)));
+    #####:  226:	    _M_capacity(__dnew);
+        -:  227:	  }
+        -:  228:	else
+        -:  229:	  _M_use_local_data();
+        -:  230:
+        -:  231:	// Check for out_of_range and length_error exceptions.
+        -:  232:	struct _Guard
+        -:  233:	{
+        -:  234:	  _GLIBCXX20_CONSTEXPR
+        -:  235:	  explicit _Guard(basic_string* __s) : _M_guarded(__s) { }
+        -:  236:
+        -:  237:	  _GLIBCXX20_CONSTEXPR
+        -:  238:	  ~_Guard() { if (_M_guarded) _M_guarded->_M_dispose(); }
+        -:  239:
+        -:  240:	  basic_string* _M_guarded;
+        -:  241:	} __guard(this);
+        -:  242:
+        -:  243:	this->_S_copy_chars(_M_data(), __beg, __end);
+        -:  244:
+        -:  245:	__guard._M_guarded = 0;
+        -:  246:
+    #####:  247:	_M_set_length(__dnew);
+    #####:  248:      }
+------------------
+_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE12_M_constructIPcEEvT_S7_St20forward_iterator_tag:
+    #####:  217:      basic_string<_CharT, _Traits, _Alloc>::
+        -:  218:      _M_construct(_InIterator __beg, _InIterator __end,
+        -:  219:		   std::forward_iterator_tag)
+        -:  220:      {
+    #####:  221:	size_type __dnew = static_cast<size_type>(std::distance(__beg, __end));
+        -:  222:
+    #####:  223:	if (__dnew > size_type(_S_local_capacity))
+        -:  224:	  {
+    #####:  225:	    _M_data(_M_create(__dnew, size_type(0)));
+    #####:  226:	    _M_capacity(__dnew);
+        -:  227:	  }
+        -:  228:	else
+        -:  229:	  _M_use_local_data();
+        -:  230:
+        -:  231:	// Check for out_of_range and length_error exceptions.
+        -:  232:	struct _Guard
+        -:  233:	{
+        -:  234:	  _GLIBCXX20_CONSTEXPR
+        -:  235:	  explicit _Guard(basic_string* __s) : _M_guarded(__s) { }
+        -:  236:
+        -:  237:	  _GLIBCXX20_CONSTEXPR
+        -:  238:	  ~_Guard() { if (_M_guarded) _M_guarded->_M_dispose(); }
+        -:  239:
+        -:  240:	  basic_string* _M_guarded;
+        -:  241:	} __guard(this);
+        -:  242:
+        -:  243:	this->_S_copy_chars(_M_data(), __beg, __end);
+        -:  244:
+        -:  245:	__guard._M_guarded = 0;
+        -:  246:
+    #####:  247:	_M_set_length(__dnew);
+    #####:  248:      }
+------------------
+_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE12_M_constructIPKcEEvT_S8_St20forward_iterator_tag:
+    #####:  217:      basic_string<_CharT, _Traits, _Alloc>::
+        -:  218:      _M_construct(_InIterator __beg, _InIterator __end,
+        -:  219:		   std::forward_iterator_tag)
+        -:  220:      {
+    #####:  221:	size_type __dnew = static_cast<size_type>(std::distance(__beg, __end));
+        -:  222:
+    #####:  223:	if (__dnew > size_type(_S_local_capacity))
+        -:  224:	  {
+    #####:  225:	    _M_data(_M_create(__dnew, size_type(0)));
+    #####:  226:	    _M_capacity(__dnew);
+        -:  227:	  }
+        -:  228:	else
+        -:  229:	  _M_use_local_data();
+        -:  230:
+        -:  231:	// Check for out_of_range and length_error exceptions.
+        -:  232:	struct _Guard
+        -:  233:	{
+        -:  234:	  _GLIBCXX20_CONSTEXPR
+        -:  235:	  explicit _Guard(basic_string* __s) : _M_guarded(__s) { }
+        -:  236:
+        -:  237:	  _GLIBCXX20_CONSTEXPR
+        -:  238:	  ~_Guard() { if (_M_guarded) _M_guarded->_M_dispose(); }
+        -:  239:
+        -:  240:	  basic_string* _M_guarded;
+        -:  241:	} __guard(this);
+        -:  242:
+        -:  243:	this->_S_copy_chars(_M_data(), __beg, __end);
+        -:  244:
+        -:  245:	__guard._M_guarded = 0;
+        -:  246:
+    #####:  247:	_M_set_length(__dnew);
+    #####:  248:      }
+------------------
+        -:  249:
+        -:  250:  template<typename _CharT, typename _Traits, typename _Alloc>
+        -:  251:    _GLIBCXX20_CONSTEXPR
+        -:  252:    void
+        -:  253:    basic_string<_CharT, _Traits, _Alloc>::
+        -:  254:    _M_construct(size_type __n, _CharT __c)
+        -:  255:    {
+        -:  256:      if (__n > size_type(_S_local_capacity))
+        -:  257:	{
+        -:  258:	  _M_data(_M_create(__n, size_type(0)));
+        -:  259:	  _M_capacity(__n);
+        -:  260:	}
+        -:  261:      else
+        -:  262:	_M_use_local_data();
+        -:  263:
+        -:  264:      if (__n)
+        -:  265:	this->_S_assign(_M_data(), __n, __c);
+        -:  266:
+        -:  267:      _M_set_length(__n);
+        -:  268:    }
+        -:  269:
+        -:  270:  template<typename _CharT, typename _Traits, typename _Alloc>
+        -:  271:    _GLIBCXX20_CONSTEXPR
+        -:  272:    void
+        -:  273:    basic_string<_CharT, _Traits, _Alloc>::
+        -:  274:    _M_assign(const basic_string& __str)
+        -:  275:    {
+        -:  276:      if (this != std::__addressof(__str))
+        -:  277:	{
+        -:  278:	  const size_type __rsize = __str.length();
+        -:  279:	  const size_type __capacity = capacity();
+        -:  280:
+        -:  281:	  if (__rsize > __capacity)
+        -:  282:	    {
+        -:  283:	      size_type __new_capacity = __rsize;
+        -:  284:	      pointer __tmp = _M_create(__new_capacity, __capacity);
+        -:  285:	      _M_dispose();
+        -:  286:	      _M_data(__tmp);
+        -:  287:	      _M_capacity(__new_capacity);
+        -:  288:	    }
+        -:  289:
+        -:  290:	  if (__rsize)
+        -:  291:	    this->_S_copy(_M_data(), __str._M_data(), __rsize);
+        -:  292:
+        -:  293:	  _M_set_length(__rsize);
+        -:  294:	}
+        -:  295:    }
+        -:  296:
+        -:  297:  template<typename _CharT, typename _Traits, typename _Alloc>
+        -:  298:    _GLIBCXX20_CONSTEXPR
+        -:  299:    void
+        -:  300:    basic_string<_CharT, _Traits, _Alloc>::
+        -:  301:    reserve(size_type __res)
+        -:  302:    {
+        -:  303:      const size_type __capacity = capacity();
+        -:  304:      // _GLIBCXX_RESOLVE_LIB_DEFECTS
+        -:  305:      // 2968. Inconsistencies between basic_string reserve and
+        -:  306:      // vector/unordered_map/unordered_set reserve functions
+        -:  307:      // P0966 reserve should not shrink
+        -:  308:      if (__res <= __capacity)
+        -:  309:	return;
+        -:  310:
+        -:  311:      pointer __tmp = _M_create(__res, __capacity);
+        -:  312:      this->_S_copy(__tmp, _M_data(), length() + 1);
+        -:  313:      _M_dispose();
+        -:  314:      _M_data(__tmp);
+        -:  315:      _M_capacity(__res);
+        -:  316:    }
+        -:  317:
+        -:  318:  template<typename _CharT, typename _Traits, typename _Alloc>
+        -:  319:    _GLIBCXX20_CONSTEXPR
+        -:  320:    void
+        -:  321:    basic_string<_CharT, _Traits, _Alloc>::
+        -:  322:    _M_mutate(size_type __pos, size_type __len1, const _CharT* __s,
+        -:  323:	      size_type __len2)
+        -:  324:    {
+        -:  325:      const size_type __how_much = length() - __pos - __len1;
+        -:  326:
+        -:  327:      size_type __new_capacity = length() + __len2 - __len1;
+        -:  328:      pointer __r = _M_create(__new_capacity, capacity());
+        -:  329:
+        -:  330:      if (__pos)
+        -:  331:	this->_S_copy(__r, _M_data(), __pos);
+        -:  332:      if (__s && __len2)
+        -:  333:	this->_S_copy(__r + __pos, __s, __len2);
+        -:  334:      if (__how_much)
+        -:  335:	this->_S_copy(__r + __pos + __len2,
+        -:  336:		      _M_data() + __pos + __len1, __how_much);
+        -:  337:
+        -:  338:      _M_dispose();
+        -:  339:      _M_data(__r);
+        -:  340:      _M_capacity(__new_capacity);
+        -:  341:    }
+        -:  342:
+        -:  343:  template<typename _CharT, typename _Traits, typename _Alloc>
+        -:  344:    _GLIBCXX20_CONSTEXPR
+        -:  345:    void
+        -:  346:    basic_string<_CharT, _Traits, _Alloc>::
+        -:  347:    _M_erase(size_type __pos, size_type __n)
+        -:  348:    {
+        -:  349:      const size_type __how_much = length() - __pos - __n;
+        -:  350:
+        -:  351:      if (__how_much && __n)
+        -:  352:	this->_S_move(_M_data() + __pos, _M_data() + __pos + __n, __how_much);
+        -:  353:
+        -:  354:      _M_set_length(length() - __n);
+        -:  355:    }
+        -:  356:
+        -:  357:  template<typename _CharT, typename _Traits, typename _Alloc>
+        -:  358:    _GLIBCXX20_CONSTEXPR
+        -:  359:    void
+        -:  360:    basic_string<_CharT, _Traits, _Alloc>::
+        -:  361:    reserve()
+        -:  362:    {
+        -:  363:      if (_M_is_local())
+        -:  364:	return;
+        -:  365:
+        -:  366:      const size_type __length = length();
+        -:  367:      const size_type __capacity = _M_allocated_capacity;
+        -:  368:
+        -:  369:      if (__length <= size_type(_S_local_capacity))
+        -:  370:	{
+        -:  371:	  this->_S_copy(_M_use_local_data(), _M_data(), __length + 1);
+        -:  372:	  _M_destroy(__capacity);
+        -:  373:	  _M_data(_M_local_data());
+        -:  374:	}
+        -:  375:#if __cpp_exceptions
+        -:  376:      else if (__length < __capacity)
+        -:  377:	try
+        -:  378:	  {
+        -:  379:	    pointer __tmp = _S_allocate(_M_get_allocator(), __length + 1);
+        -:  380:	    this->_S_copy(__tmp, _M_data(), __length + 1);
+        -:  381:	    _M_dispose();
+        -:  382:	    _M_data(__tmp);
+        -:  383:	    _M_capacity(__length);
+        -:  384:	  }
+        -:  385:	catch (const __cxxabiv1::__forced_unwind&)
+        -:  386:	  { throw; }
+        -:  387:	catch (...)
+        -:  388:	  { /* swallow the exception */ }
+        -:  389:#endif
+        -:  390:    }
+        -:  391:
+        -:  392:  template<typename _CharT, typename _Traits, typename _Alloc>
+        -:  393:    _GLIBCXX20_CONSTEXPR
+        -:  394:    void
+        -:  395:    basic_string<_CharT, _Traits, _Alloc>::
+        -:  396:    resize(size_type __n, _CharT __c)
+        -:  397:    {
+        -:  398:      const size_type __size = this->size();
+        -:  399:      if (__size < __n)
+        -:  400:	this->append(__n - __size, __c);
+        -:  401:      else if (__n < __size)
+        -:  402:	this->_M_set_length(__n);
+        -:  403:    }
+        -:  404:
+        -:  405:  template<typename _CharT, typename _Traits, typename _Alloc>
+        -:  406:    _GLIBCXX20_CONSTEXPR
+        -:  407:    basic_string<_CharT, _Traits, _Alloc>&
+        -:  408:    basic_string<_CharT, _Traits, _Alloc>::
+        -:  409:    _M_append(const _CharT* __s, size_type __n)
+        -:  410:    {
+        -:  411:      const size_type __len = __n + this->size();
+        -:  412:
+        -:  413:      if (__len <= this->capacity())
+        -:  414:	{
+        -:  415:	  if (__n)
+        -:  416:	    this->_S_copy(this->_M_data() + this->size(), __s, __n);
+        -:  417:	}
+        -:  418:      else
+        -:  419:	this->_M_mutate(this->size(), size_type(0), __s, __n);
+        -:  420:
+        -:  421:      this->_M_set_length(__len);
+        -:  422:      return *this;
+        -:  423:    }
+        -:  424:
+        -:  425:  template<typename _CharT, typename _Traits, typename _Alloc>
+        -:  426:    template<typename _InputIterator>
+        -:  427:      _GLIBCXX20_CONSTEXPR
+        -:  428:      basic_string<_CharT, _Traits, _Alloc>&
+        -:  429:      basic_string<_CharT, _Traits, _Alloc>::
+        -:  430:      _M_replace_dispatch(const_iterator __i1, const_iterator __i2,
+        -:  431:			  _InputIterator __k1, _InputIterator __k2,
+        -:  432:			  std::__false_type)
+        -:  433:      {
+        -:  434:	// _GLIBCXX_RESOLVE_LIB_DEFECTS
+        -:  435:	// 2788. unintentionally require a default constructible allocator
+        -:  436:	const basic_string __s(__k1, __k2, this->get_allocator());
+        -:  437:	const size_type __n1 = __i2 - __i1;
+        -:  438:	return _M_replace(__i1 - begin(), __n1, __s._M_data(),
+        -:  439:			  __s.size());
+        -:  440:      }
+        -:  441:
+        -:  442:  template<typename _CharT, typename _Traits, typename _Alloc>
+        -:  443:    _GLIBCXX20_CONSTEXPR
+        -:  444:    basic_string<_CharT, _Traits, _Alloc>&
+        -:  445:    basic_string<_CharT, _Traits, _Alloc>::
+        -:  446:    _M_replace_aux(size_type __pos1, size_type __n1, size_type __n2,
+        -:  447:		   _CharT __c)
+        -:  448:    {
+        -:  449:      _M_check_length(__n1, __n2, "basic_string::_M_replace_aux");
+        -:  450:
+        -:  451:      const size_type __old_size = this->size();
+        -:  452:      const size_type __new_size = __old_size + __n2 - __n1;
+        -:  453:
+        -:  454:      if (__new_size <= this->capacity())
+        -:  455:	{
+        -:  456:	  pointer __p = this->_M_data() + __pos1;
+        -:  457:
+        -:  458:	  const size_type __how_much = __old_size - __pos1 - __n1;
+        -:  459:	  if (__how_much && __n1 != __n2)
+        -:  460:	    this->_S_move(__p + __n2, __p + __n1, __how_much);
+        -:  461:	}
+        -:  462:      else
+        -:  463:	this->_M_mutate(__pos1, __n1, 0, __n2);
+        -:  464:
+        -:  465:      if (__n2)
+        -:  466:	this->_S_assign(this->_M_data() + __pos1, __n2, __c);
+        -:  467:
+        -:  468:      this->_M_set_length(__new_size);
+        -:  469:      return *this;
+        -:  470:    }
+        -:  471:
+        -:  472:  template<typename _CharT, typename _Traits, typename _Alloc>
+        -:  473:    __attribute__((__noinline__, __noclone__, __cold__)) void
+        -:  474:    basic_string<_CharT, _Traits, _Alloc>::
+        -:  475:    _M_replace_cold(pointer __p, size_type __len1, const _CharT* __s,
+        -:  476:		    const size_type __len2, const size_type __how_much)
+        -:  477:    {
+        -:  478:      // Work in-place.
+        -:  479:      if (__len2 && __len2 <= __len1)
+        -:  480:	this->_S_move(__p, __s, __len2);
+        -:  481:      if (__how_much && __len1 != __len2)
+        -:  482:	this->_S_move(__p + __len2, __p + __len1, __how_much);
+        -:  483:      if (__len2 > __len1)
+        -:  484:	{
+        -:  485:	  if (__s + __len2 <= __p + __len1)
+        -:  486:	    this->_S_move(__p, __s, __len2);
+        -:  487:	  else if (__s >= __p + __len1)
+        -:  488:	    {
+        -:  489:	      // Hint to middle end that __p and __s overlap
+        -:  490:	      // (PR 98465).
+        -:  491:	      const size_type __poff = (__s - __p) + (__len2 - __len1);
+        -:  492:	      this->_S_copy(__p, __p + __poff, __len2);
+        -:  493:	    }
+        -:  494:	  else
+        -:  495:	    {
+        -:  496:	      const size_type __nleft = (__p + __len1) - __s;
+        -:  497:	      this->_S_move(__p, __s, __nleft);
+        -:  498:	      this->_S_copy(__p + __nleft, __p + __len2, __len2 - __nleft);
+        -:  499:	    }
+        -:  500:	}
+        -:  501:    }
+        -:  502:
+        -:  503:  template<typename _CharT, typename _Traits, typename _Alloc>
+        -:  504:    _GLIBCXX20_CONSTEXPR
+        -:  505:    basic_string<_CharT, _Traits, _Alloc>&
+        -:  506:    basic_string<_CharT, _Traits, _Alloc>::
+        -:  507:    _M_replace(size_type __pos, size_type __len1, const _CharT* __s,
+        -:  508:	       const size_type __len2)
+        -:  509:    {
+        -:  510:      _M_check_length(__len1, __len2, "basic_string::_M_replace");
+        -:  511:
+        -:  512:      const size_type __old_size = this->size();
+        -:  513:      const size_type __new_size = __old_size + __len2 - __len1;
+        -:  514:
+        -:  515:      if (__new_size <= this->capacity())
+        -:  516:	{
+        -:  517:	  pointer __p = this->_M_data() + __pos;
+        -:  518:
+        -:  519:	  const size_type __how_much = __old_size - __pos - __len1;
+        -:  520:#if __cpp_lib_is_constant_evaluated
+        -:  521:	  if (std::is_constant_evaluated())
+        -:  522:	    {
+        -:  523:	      auto __newp = _S_allocate(_M_get_allocator(), __new_size);
+        -:  524:	      _S_copy(__newp, this->_M_data(), __pos);
+        -:  525:	      _S_copy(__newp + __pos, __s, __len2);
+        -:  526:	      _S_copy(__newp + __pos + __len2, __p + __len1, __how_much);
+        -:  527:	      _S_copy(this->_M_data(), __newp, __new_size);
+        -:  528:	      this->_M_get_allocator().deallocate(__newp, __new_size);
+        -:  529:	    }
+        -:  530:	  else
+        -:  531:#endif
+        -:  532:	  if (__builtin_expect(_M_disjunct(__s), true))
+        -:  533:	    {
+        -:  534:	      if (__how_much && __len1 != __len2)
+        -:  535:		this->_S_move(__p + __len2, __p + __len1, __how_much);
+        -:  536:	      if (__len2)
+        -:  537:		this->_S_copy(__p, __s, __len2);
+        -:  538:	    }
+        -:  539:	  else
+        -:  540:	    _M_replace_cold(__p, __len1, __s, __len2, __how_much);
+        -:  541:	}
+        -:  542:      else
+        -:  543:	this->_M_mutate(__pos, __len1, __s, __len2);
+        -:  544:
+        -:  545:      this->_M_set_length(__new_size);
+        -:  546:      return *this;
+        -:  547:    }
+        -:  548:
+        -:  549:  template<typename _CharT, typename _Traits, typename _Alloc>
+        -:  550:    _GLIBCXX20_CONSTEXPR
+        -:  551:    typename basic_string<_CharT, _Traits, _Alloc>::size_type
+        -:  552:    basic_string<_CharT, _Traits, _Alloc>::
+        -:  553:    copy(_CharT* __s, size_type __n, size_type __pos) const
+        -:  554:    {
+        -:  555:      _M_check(__pos, "basic_string::copy");
+        -:  556:      __n = _M_limit(__pos, __n);
+        -:  557:      __glibcxx_requires_string_len(__s, __n);
+        -:  558:      if (__n)
+        -:  559:	_S_copy(__s, _M_data() + __pos, __n);
+        -:  560:      // 21.3.5.7 par 3: do not append null.  (good.)
+        -:  561:      return __n;
+        -:  562:    }
+        -:  563:
+        -:  564:#if __cplusplus > 202002L
+        -:  565:  template<typename _CharT, typename _Traits, typename _Alloc>
+        -:  566:  template<typename _Operation>
+        -:  567:    constexpr void
+        -:  568:    basic_string<_CharT, _Traits, _Alloc>::
+        -:  569:    resize_and_overwrite(size_type __n, _Operation __op)
+        -:  570:    {
+        -:  571:      const size_type __capacity = capacity();
+        -:  572:      _CharT* __p;
+        -:  573:      if (__n > __capacity)
+        -:  574:	{
+        -:  575:	  __p = _M_create(__n, __capacity);
+        -:  576:	  this->_S_copy(__p, _M_data(), length()); // exclude trailing null
+        -:  577:#if __cpp_lib_is_constant_evaluated
+        -:  578:	  if (std::is_constant_evaluated())
+        -:  579:	    traits_type::assign(__p + length(), __n - length(), _CharT());
+        -:  580:#endif
+        -:  581:	  _M_dispose();
+        -:  582:	  _M_data(__p);
+        -:  583:	  _M_capacity(__n);
+        -:  584:	}
+        -:  585:      else
+        -:  586:	__p = _M_data();
+        -:  587:      struct _Terminator {
+        -:  588:	constexpr ~_Terminator() { _M_this->_M_set_length(_M_r); }
+        -:  589:	basic_string* _M_this;
+        -:  590:	size_type _M_r;
+        -:  591:      };
+        -:  592:      _Terminator __term{this};
+        -:  593:      auto __r = std::move(__op)(auto(__p), auto(__n));
+        -:  594:      static_assert(ranges::__detail::__is_integer_like<decltype(__r)>);
+        -:  595:      _GLIBCXX_DEBUG_ASSERT(__r >= 0 && __r <= __n);
+        -:  596:      __term._M_r = size_type(__r);
+        -:  597:      if (__term._M_r > __n)
+        -:  598:	__builtin_unreachable();
+        -:  599:    }
+        -:  600:#endif // C++23
+        -:  601:
+        -:  602:#endif  // _GLIBCXX_USE_CXX11_ABI
+        -:  603:   
+        -:  604:#if __cpp_lib_constexpr_string >= 201907L
+        -:  605:# define _GLIBCXX_STRING_CONSTEXPR constexpr
+        -:  606:#else
+        -:  607:# define _GLIBCXX_STRING_CONSTEXPR
+        -:  608:#endif
+        -:  609:  template<typename _CharT, typename _Traits, typename _Alloc>
+        -:  610:    _GLIBCXX_STRING_CONSTEXPR
+        -:  611:    typename basic_string<_CharT, _Traits, _Alloc>::size_type
+        -:  612:    basic_string<_CharT, _Traits, _Alloc>::
+        -:  613:    find(const _CharT* __s, size_type __pos, size_type __n) const
+        -:  614:    _GLIBCXX_NOEXCEPT
+        -:  615:    {
+        -:  616:      __glibcxx_requires_string_len(__s, __n);
+        -:  617:      const size_type __size = this->size();
+        -:  618:
+        -:  619:      if (__n == 0)
+        -:  620:	return __pos <= __size ? __pos : npos;
+        -:  621:      if (__pos >= __size)
+        -:  622:	return npos;
+        -:  623:
+        -:  624:      const _CharT __elem0 = __s[0];
+        -:  625:      const _CharT* const __data = data();
+        -:  626:      const _CharT* __first = __data + __pos;
+        -:  627:      const _CharT* const __last = __data + __size;
+        -:  628:      size_type __len = __size - __pos;
+        -:  629:
+        -:  630:      while (__len >= __n)
+        -:  631:	{
+        -:  632:	  // Find the first occurrence of __elem0:
+        -:  633:	  __first = traits_type::find(__first, __len - __n + 1, __elem0);
+        -:  634:	  if (!__first)
+        -:  635:	    return npos;
+        -:  636:	  // Compare the full strings from the first occurrence of __elem0.
+        -:  637:	  // We already know that __first[0] == __s[0] but compare them again
+        -:  638:	  // anyway because __s is probably aligned, which helps memcmp.
+        -:  639:	  if (traits_type::compare(__first, __s, __n) == 0)
+        -:  640:	    return __first - __data;
+        -:  641:	  __len = __last - ++__first;
+        -:  642:	}
+        -:  643:      return npos;
+        -:  644:    }
+        -:  645:
+        -:  646:  template<typename _CharT, typename _Traits, typename _Alloc>
+        -:  647:    _GLIBCXX_STRING_CONSTEXPR
+        -:  648:    typename basic_string<_CharT, _Traits, _Alloc>::size_type
+        -:  649:    basic_string<_CharT, _Traits, _Alloc>::
+        -:  650:    find(_CharT __c, size_type __pos) const _GLIBCXX_NOEXCEPT
+        -:  651:    {
+        -:  652:      size_type __ret = npos;
+        -:  653:      const size_type __size = this->size();
+        -:  654:      if (__pos < __size)
+        -:  655:	{
+        -:  656:	  const _CharT* __data = _M_data();
+        -:  657:	  const size_type __n = __size - __pos;
+        -:  658:	  const _CharT* __p = traits_type::find(__data + __pos, __n, __c);
+        -:  659:	  if (__p)
+        -:  660:	    __ret = __p - __data;
+        -:  661:	}
+        -:  662:      return __ret;
+        -:  663:    }
+        -:  664:
+        -:  665:  template<typename _CharT, typename _Traits, typename _Alloc>
+        -:  666:    _GLIBCXX_STRING_CONSTEXPR
+        -:  667:    typename basic_string<_CharT, _Traits, _Alloc>::size_type
+        -:  668:    basic_string<_CharT, _Traits, _Alloc>::
+        -:  669:    rfind(const _CharT* __s, size_type __pos, size_type __n) const
+        -:  670:    _GLIBCXX_NOEXCEPT
+        -:  671:    {
+        -:  672:      __glibcxx_requires_string_len(__s, __n);
+        -:  673:      const size_type __size = this->size();
+        -:  674:      if (__n <= __size)
+        -:  675:	{
+        -:  676:	  __pos = std::min(size_type(__size - __n), __pos);
+        -:  677:	  const _CharT* __data = _M_data();
+        -:  678:	  do
+        -:  679:	    {
+        -:  680:	      if (traits_type::compare(__data + __pos, __s, __n) == 0)
+        -:  681:		return __pos;
+        -:  682:	    }
+        -:  683:	  while (__pos-- > 0);
+        -:  684:	}
+        -:  685:      return npos;
+        -:  686:    }
+        -:  687:
+        -:  688:  template<typename _CharT, typename _Traits, typename _Alloc>
+        -:  689:    _GLIBCXX_STRING_CONSTEXPR
+        -:  690:    typename basic_string<_CharT, _Traits, _Alloc>::size_type
+        -:  691:    basic_string<_CharT, _Traits, _Alloc>::
+        -:  692:    rfind(_CharT __c, size_type __pos) const _GLIBCXX_NOEXCEPT
+        -:  693:    {
+        -:  694:      size_type __size = this->size();
+        -:  695:      if (__size)
+        -:  696:	{
+        -:  697:	  if (--__size > __pos)
+        -:  698:	    __size = __pos;
+        -:  699:	  for (++__size; __size-- > 0; )
+        -:  700:	    if (traits_type::eq(_M_data()[__size], __c))
+        -:  701:	      return __size;
+        -:  702:	}
+        -:  703:      return npos;
+        -:  704:    }
+        -:  705:
+        -:  706:  template<typename _CharT, typename _Traits, typename _Alloc>
+        -:  707:    _GLIBCXX_STRING_CONSTEXPR
+        -:  708:    typename basic_string<_CharT, _Traits, _Alloc>::size_type
+        -:  709:    basic_string<_CharT, _Traits, _Alloc>::
+        -:  710:    find_first_of(const _CharT* __s, size_type __pos, size_type __n) const
+        -:  711:    _GLIBCXX_NOEXCEPT
+        -:  712:    {
+        -:  713:      __glibcxx_requires_string_len(__s, __n);
+        -:  714:      for (; __n && __pos < this->size(); ++__pos)
+        -:  715:	{
+        -:  716:	  const _CharT* __p = traits_type::find(__s, __n, _M_data()[__pos]);
+        -:  717:	  if (__p)
+        -:  718:	    return __pos;
+        -:  719:	}
+        -:  720:      return npos;
+        -:  721:    }
+        -:  722:
+        -:  723:  template<typename _CharT, typename _Traits, typename _Alloc>
+        -:  724:    _GLIBCXX_STRING_CONSTEXPR
+        -:  725:    typename basic_string<_CharT, _Traits, _Alloc>::size_type
+        -:  726:    basic_string<_CharT, _Traits, _Alloc>::
+        -:  727:    find_last_of(const _CharT* __s, size_type __pos, size_type __n) const
+        -:  728:    _GLIBCXX_NOEXCEPT
+        -:  729:    {
+        -:  730:      __glibcxx_requires_string_len(__s, __n);
+        -:  731:      size_type __size = this->size();
+        -:  732:      if (__size && __n)
+        -:  733:	{
+        -:  734:	  if (--__size > __pos)
+        -:  735:	    __size = __pos;
+        -:  736:	  do
+        -:  737:	    {
+        -:  738:	      if (traits_type::find(__s, __n, _M_data()[__size]))
+        -:  739:		return __size;
+        -:  740:	    }
+        -:  741:	  while (__size-- != 0);
+        -:  742:	}
+        -:  743:      return npos;
+        -:  744:    }
+        -:  745:
+        -:  746:  template<typename _CharT, typename _Traits, typename _Alloc>
+        -:  747:    _GLIBCXX_STRING_CONSTEXPR
+        -:  748:    typename basic_string<_CharT, _Traits, _Alloc>::size_type
+        -:  749:    basic_string<_CharT, _Traits, _Alloc>::
+        -:  750:    find_first_not_of(const _CharT* __s, size_type __pos, size_type __n) const
+        -:  751:    _GLIBCXX_NOEXCEPT
+        -:  752:    {
+        -:  753:      __glibcxx_requires_string_len(__s, __n);
+        -:  754:      for (; __pos < this->size(); ++__pos)
+        -:  755:	if (!traits_type::find(__s, __n, _M_data()[__pos]))
+        -:  756:	  return __pos;
+        -:  757:      return npos;
+        -:  758:    }
+        -:  759:
+        -:  760:  template<typename _CharT, typename _Traits, typename _Alloc>
+        -:  761:    _GLIBCXX_STRING_CONSTEXPR
+        -:  762:    typename basic_string<_CharT, _Traits, _Alloc>::size_type
+        -:  763:    basic_string<_CharT, _Traits, _Alloc>::
+        -:  764:    find_first_not_of(_CharT __c, size_type __pos) const _GLIBCXX_NOEXCEPT
+        -:  765:    {
+        -:  766:      for (; __pos < this->size(); ++__pos)
+        -:  767:	if (!traits_type::eq(_M_data()[__pos], __c))
+        -:  768:	  return __pos;
+        -:  769:      return npos;
+        -:  770:    }
+        -:  771:
+        -:  772:  template<typename _CharT, typename _Traits, typename _Alloc>
+        -:  773:    _GLIBCXX_STRING_CONSTEXPR
+        -:  774:    typename basic_string<_CharT, _Traits, _Alloc>::size_type
+        -:  775:    basic_string<_CharT, _Traits, _Alloc>::
+        -:  776:    find_last_not_of(const _CharT* __s, size_type __pos, size_type __n) const
+        -:  777:    _GLIBCXX_NOEXCEPT
+        -:  778:    {
+        -:  779:      __glibcxx_requires_string_len(__s, __n);
+        -:  780:      size_type __size = this->size();
+        -:  781:      if (__size)
+        -:  782:	{
+        -:  783:	  if (--__size > __pos)
+        -:  784:	    __size = __pos;
+        -:  785:	  do
+        -:  786:	    {
+        -:  787:	      if (!traits_type::find(__s, __n, _M_data()[__size]))
+        -:  788:		return __size;
+        -:  789:	    }
+        -:  790:	  while (__size--);
+        -:  791:	}
+        -:  792:      return npos;
+        -:  793:    }
+        -:  794:
+        -:  795:  template<typename _CharT, typename _Traits, typename _Alloc>
+        -:  796:    _GLIBCXX_STRING_CONSTEXPR
+        -:  797:    typename basic_string<_CharT, _Traits, _Alloc>::size_type
+        -:  798:    basic_string<_CharT, _Traits, _Alloc>::
+        -:  799:    find_last_not_of(_CharT __c, size_type __pos) const _GLIBCXX_NOEXCEPT
+        -:  800:    {
+        -:  801:      size_type __size = this->size();
+        -:  802:      if (__size)
+        -:  803:	{
+        -:  804:	  if (--__size > __pos)
+        -:  805:	    __size = __pos;
+        -:  806:	  do
+        -:  807:	    {
+        -:  808:	      if (!traits_type::eq(_M_data()[__size], __c))
+        -:  809:		return __size;
+        -:  810:	    }
+        -:  811:	  while (__size--);
+        -:  812:	}
+        -:  813:      return npos;
+        -:  814:    }
+        -:  815:
+        -:  816:#undef _GLIBCXX_STRING_CONSTEXPR
+        -:  817:
+        -:  818:  // 21.3.7.9 basic_string::getline and operators
+        -:  819:  template<typename _CharT, typename _Traits, typename _Alloc>
+        -:  820:    basic_istream<_CharT, _Traits>&
+        -:  821:    operator>>(basic_istream<_CharT, _Traits>& __in,
+        -:  822:	       basic_string<_CharT, _Traits, _Alloc>& __str)
+        -:  823:    {
+        -:  824:      typedef basic_istream<_CharT, _Traits>		__istream_type;
+        -:  825:      typedef basic_string<_CharT, _Traits, _Alloc>	__string_type;
+        -:  826:      typedef typename __istream_type::ios_base         __ios_base;
+        -:  827:      typedef typename __istream_type::int_type		__int_type;
+        -:  828:      typedef typename __string_type::size_type		__size_type;
+        -:  829:      typedef ctype<_CharT>				__ctype_type;
+        -:  830:      typedef typename __ctype_type::ctype_base         __ctype_base;
+        -:  831:
+        -:  832:      __size_type __extracted = 0;
+        -:  833:      typename __ios_base::iostate __err = __ios_base::goodbit;
+        -:  834:      typename __istream_type::sentry __cerb(__in, false);
+        -:  835:      if (__cerb)
+        -:  836:	{
+        -:  837:	  __try
+        -:  838:	    {
+        -:  839:	      // Avoid reallocation for common case.
+        -:  840:	      __str.erase();
+        -:  841:	      _CharT __buf[128];
+        -:  842:	      __size_type __len = 0;	      
+        -:  843:	      const streamsize __w = __in.width();
+        -:  844:	      const __size_type __n = __w > 0 ? static_cast<__size_type>(__w)
+        -:  845:		                              : __str.max_size();
+        -:  846:	      const __ctype_type& __ct = use_facet<__ctype_type>(__in.getloc());
+        -:  847:	      const __int_type __eof = _Traits::eof();
+        -:  848:	      __int_type __c = __in.rdbuf()->sgetc();
+        -:  849:
+        -:  850:	      while (__extracted < __n
+        -:  851:		     && !_Traits::eq_int_type(__c, __eof)
+        -:  852:		     && !__ct.is(__ctype_base::space,
+        -:  853:				 _Traits::to_char_type(__c)))
+        -:  854:		{
+        -:  855:		  if (__len == sizeof(__buf) / sizeof(_CharT))
+        -:  856:		    {
+        -:  857:		      __str.append(__buf, sizeof(__buf) / sizeof(_CharT));
+        -:  858:		      __len = 0;
+        -:  859:		    }
+        -:  860:		  __buf[__len++] = _Traits::to_char_type(__c);
+        -:  861:		  ++__extracted;
+        -:  862:		  __c = __in.rdbuf()->snextc();
+        -:  863:		}
+        -:  864:	      __str.append(__buf, __len);
+        -:  865:
+        -:  866:	      if (__extracted < __n && _Traits::eq_int_type(__c, __eof))
+        -:  867:		__err |= __ios_base::eofbit;
+        -:  868:	      __in.width(0);
+        -:  869:	    }
+        -:  870:	  __catch(__cxxabiv1::__forced_unwind&)
+        -:  871:	    {
+        -:  872:	      __in._M_setstate(__ios_base::badbit);
+        -:  873:	      __throw_exception_again;
+        -:  874:	    }
+        -:  875:	  __catch(...)
+        -:  876:	    {
+        -:  877:	      // _GLIBCXX_RESOLVE_LIB_DEFECTS
+        -:  878:	      // 91. Description of operator>> and getline() for string<>
+        -:  879:	      // might cause endless loop
+        -:  880:	      __in._M_setstate(__ios_base::badbit);
+        -:  881:	    }
+        -:  882:	}
+        -:  883:      // 211.  operator>>(istream&, string&) doesn't set failbit
+        -:  884:      if (!__extracted)
+        -:  885:	__err |= __ios_base::failbit;
+        -:  886:      if (__err)
+        -:  887:	__in.setstate(__err);
+        -:  888:      return __in;
+        -:  889:    }
+        -:  890:
+        -:  891:  template<typename _CharT, typename _Traits, typename _Alloc>
+        -:  892:    basic_istream<_CharT, _Traits>&
+        -:  893:    getline(basic_istream<_CharT, _Traits>& __in,
+        -:  894:	    basic_string<_CharT, _Traits, _Alloc>& __str, _CharT __delim)
+        -:  895:    {
+        -:  896:      typedef basic_istream<_CharT, _Traits>		__istream_type;
+        -:  897:      typedef basic_string<_CharT, _Traits, _Alloc>	__string_type;
+        -:  898:      typedef typename __istream_type::ios_base         __ios_base;
+        -:  899:      typedef typename __istream_type::int_type		__int_type;
+        -:  900:      typedef typename __string_type::size_type		__size_type;
+        -:  901:
+        -:  902:      __size_type __extracted = 0;
+        -:  903:      const __size_type __n = __str.max_size();
+        -:  904:      typename __ios_base::iostate __err = __ios_base::goodbit;
+        -:  905:      typename __istream_type::sentry __cerb(__in, true);
+        -:  906:      if (__cerb)
+        -:  907:	{
+        -:  908:	  __try
+        -:  909:	    {
+        -:  910:	      __str.erase();
+        -:  911:	      const __int_type __idelim = _Traits::to_int_type(__delim);
+        -:  912:	      const __int_type __eof = _Traits::eof();
+        -:  913:	      __int_type __c = __in.rdbuf()->sgetc();
+        -:  914:
+        -:  915:	      while (__extracted < __n
+        -:  916:		     && !_Traits::eq_int_type(__c, __eof)
+        -:  917:		     && !_Traits::eq_int_type(__c, __idelim))
+        -:  918:		{
+        -:  919:		  __str += _Traits::to_char_type(__c);
+        -:  920:		  ++__extracted;
+        -:  921:		  __c = __in.rdbuf()->snextc();
+        -:  922:		}
+        -:  923:
+        -:  924:	      if (_Traits::eq_int_type(__c, __eof))
+        -:  925:		__err |= __ios_base::eofbit;
+        -:  926:	      else if (_Traits::eq_int_type(__c, __idelim))
+        -:  927:		{
+        -:  928:		  ++__extracted;		  
+        -:  929:		  __in.rdbuf()->sbumpc();
+        -:  930:		}
+        -:  931:	      else
+        -:  932:		__err |= __ios_base::failbit;
+        -:  933:	    }
+        -:  934:	  __catch(__cxxabiv1::__forced_unwind&)
+        -:  935:	    {
+        -:  936:	      __in._M_setstate(__ios_base::badbit);
+        -:  937:	      __throw_exception_again;
+        -:  938:	    }
+        -:  939:	  __catch(...)
+        -:  940:	    {
+        -:  941:	      // _GLIBCXX_RESOLVE_LIB_DEFECTS
+        -:  942:	      // 91. Description of operator>> and getline() for string<>
+        -:  943:	      // might cause endless loop
+        -:  944:	      __in._M_setstate(__ios_base::badbit);
+        -:  945:	    }
+        -:  946:	}
+        -:  947:      if (!__extracted)
+        -:  948:	__err |= __ios_base::failbit;
+        -:  949:      if (__err)
+        -:  950:	__in.setstate(__err);
+        -:  951:      return __in;
+        -:  952:    }
+        -:  953:
+        -:  954:  // Inhibit implicit instantiations for required instantiations,
+        -:  955:  // which are defined via explicit instantiations elsewhere.
+        -:  956:#if _GLIBCXX_EXTERN_TEMPLATE
+        -:  957:  // The explicit instantiation definitions in src/c++11/string-inst.cc and
+        -:  958:  // src/c++17/string-inst.cc only instantiate the members required for C++17
+        -:  959:  // and earlier standards (so not C++20's starts_with and ends_with).
+        -:  960:  // Suppress the explicit instantiation declarations for C++20, so C++20
+        -:  961:  // code will implicitly instantiate std::string and std::wstring as needed.
+        -:  962:# if __cplusplus <= 201703L && _GLIBCXX_EXTERN_TEMPLATE > 0
+        -:  963:  extern template class basic_string<char>;
+        -:  964:# elif ! _GLIBCXX_USE_CXX11_ABI
+        -:  965:  // Still need to prevent implicit instantiation of the COW empty rep,
+        -:  966:  // to ensure the definition in libstdc++.so is unique (PR 86138).
+        -:  967:  extern template basic_string<char>::size_type
+        -:  968:    basic_string<char>::_Rep::_S_empty_rep_storage[];
+        -:  969:# elif _GLIBCXX_EXTERN_TEMPLATE > 0
+        -:  970:  // Export _M_replace_cold even for C++20.
+        -:  971:  extern template void
+        -:  972:    basic_string<char>::_M_replace_cold(char *, size_type, const char*,
+        -:  973:					const size_type, const size_type);
+        -:  974:# endif
+        -:  975:
+        -:  976:  extern template
+        -:  977:    basic_istream<char>&
+        -:  978:    operator>>(basic_istream<char>&, string&);
+        -:  979:  extern template
+        -:  980:    basic_ostream<char>&
+        -:  981:    operator<<(basic_ostream<char>&, const string&);
+        -:  982:  extern template
+        -:  983:    basic_istream<char>&
+        -:  984:    getline(basic_istream<char>&, string&, char);
+        -:  985:  extern template
+        -:  986:    basic_istream<char>&
+        -:  987:    getline(basic_istream<char>&, string&);
+        -:  988:
+        -:  989:#ifdef _GLIBCXX_USE_WCHAR_T
+        -:  990:# if __cplusplus <= 201703L && _GLIBCXX_EXTERN_TEMPLATE > 0
+        -:  991:  extern template class basic_string<wchar_t>;
+        -:  992:# elif ! _GLIBCXX_USE_CXX11_ABI
+        -:  993:  extern template basic_string<wchar_t>::size_type
+        -:  994:    basic_string<wchar_t>::_Rep::_S_empty_rep_storage[];
+        -:  995:# elif _GLIBCXX_EXTERN_TEMPLATE > 0
+        -:  996:  // Export _M_replace_cold even for C++20.
+        -:  997:  extern template void
+        -:  998:    basic_string<wchar_t>::_M_replace_cold(wchar_t*, size_type, const wchar_t*,
+        -:  999:					   const size_type, const size_type);
+        -: 1000:# endif
+        -: 1001:
+        -: 1002:  extern template
+        -: 1003:    basic_istream<wchar_t>&
+        -: 1004:    operator>>(basic_istream<wchar_t>&, wstring&);
+        -: 1005:  extern template
+        -: 1006:    basic_ostream<wchar_t>&
+        -: 1007:    operator<<(basic_ostream<wchar_t>&, const wstring&);
+        -: 1008:  extern template
+        -: 1009:    basic_istream<wchar_t>&
+        -: 1010:    getline(basic_istream<wchar_t>&, wstring&, wchar_t);
+        -: 1011:  extern template
+        -: 1012:    basic_istream<wchar_t>&
+        -: 1013:    getline(basic_istream<wchar_t>&, wstring&);
+        -: 1014:#endif // _GLIBCXX_USE_WCHAR_T
+        -: 1015:#endif // _GLIBCXX_EXTERN_TEMPLATE
+        -: 1016:
+        -: 1017:_GLIBCXX_END_NAMESPACE_VERSION
+        -: 1018:} // namespace std
+        -: 1019:
+        -: 1020:#endif
